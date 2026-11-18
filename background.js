@@ -202,3 +202,52 @@ chrome.runtime.onMessage.addListener((msg, _sender, reply) => {
   })();
   return true;
 });
+
+// --- Saved Instagram reels ---
+// reels.js (running in an instagram.com tab) sends each file here; it's saved
+// under Downloads/Instagram Saved/ and the reply comes once the download ends,
+// so reels.js saves one file at a time. ig-button.js (the download button on
+// each Instagram video) uses the same path, saving under Downloads/Instagram/.
+
+const REELS_HOSTS = /(^|\.)(cdninstagram\.com|fbcdn\.net)$/;
+const REELS_TIMEOUT = 4 * 60000;
+
+function reelsDownload(url, filename) {
+  return new Promise((resolve) => {
+    chrome.downloads.download({ url, filename, saveAs: false, conflictAction: 'uniquify' }, (id) => {
+      if (chrome.runtime.lastError || id == null) {
+        return resolve({ ok: false, error: chrome.runtime.lastError?.message || 'download failed' });
+      }
+      let timer;
+      const finish = (result) => {
+        clearTimeout(timer);
+        chrome.downloads.onChanged.removeListener(onChanged);
+        resolve(result);
+      };
+      const check = (state, error) => {
+        if (state === 'complete') finish({ ok: true });
+        else if (state === 'interrupted') finish({ ok: false, error: error || 'interrupted' });
+      };
+      const onChanged = (d) => { if (d.id === id && d.state) check(d.state.current, d.error?.current); };
+      chrome.downloads.onChanged.addListener(onChanged);
+      // A very large file keeps going on its own; move on rather than wait.
+      timer = setTimeout(() => finish({ ok: true }), REELS_TIMEOUT);
+      // It may have finished before the listener was added.
+      chrome.downloads.search({ id }, ([d]) => { if (d) check(d.state, d.error); });
+    });
+  });
+}
+
+chrome.runtime.onMessage.addListener((msg, sender, reply) => {
+  if (msg?.type !== 'bk-reels-download') return;
+  let host = '';
+  try { host = new URL(msg.url).hostname; } catch {}
+  const fromInstagram = /^https:\/\/www\.instagram\.com\//.test(sender.tab?.url || sender.url || '');
+  const name = String(msg.filename || '');
+  if (!fromInstagram || !REELS_HOSTS.test(host) || !/^Instagram( Saved)?\//.test(name) || name.includes('..')) {
+    reply({ ok: false, error: 'refused' });
+    return;
+  }
+  reelsDownload(msg.url, name).then(reply);
+  return true;
+});

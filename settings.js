@@ -10,6 +10,9 @@
   let autoplayClickedAt = 0;
 
   const on = (key) => settings.enabled && settings[key];
+  // On YouTube Music this file only handles video ads (and keeps the settings
+  // cache that yt-noads.js reads); the YouTube page tweaks don't apply there.
+  const MUSIC = location.hostname === 'music.youtube.com';
 
   // Set the ytqh-* flags on <html> that hide.css keys off. YouTube can drop
   // attributes on <html> while it boots and navigates, so this runs again on
@@ -129,6 +132,7 @@
   }
 
   function tick() {
+    if (MUSIC) return;
     setFlags();
     const href = location.href;
 

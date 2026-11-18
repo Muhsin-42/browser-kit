@@ -11,6 +11,7 @@
     <button type="button" role="tab" data-tab="color">Color</button>
     <button type="button" role="tab" data-tab="cors">CORS</button>
     <button type="button" role="tab" data-tab="block">Focus</button>
+    <button type="button" role="tab" data-tab="reels">Reels</button>
   </nav>
 
   <section id="tab-yt" class="panel" role="tabpanel">
@@ -103,6 +104,34 @@
       <button type="submit">Block</button>
     </form>
     <p class="note">Blocked sites (and their subdomains) open a page that asks you to type a phrase. That unlocks the site for 10 minutes, then it's blocked again and open tabs on it go back to the blocked page. A site has to be unlocked before you can remove it.</p>
+  </section>
+
+  <section id="tab-reels" class="panel" role="tabpanel" hidden>
+    <div class="cors-origin">Instagram saved posts</div>
+    <div class="pick-row">
+      <button type="button" class="pick-btn" id="reels-start">Download all saved reels</button>
+      <button type="button" class="pick-btn alt" id="reels-stop" hidden>Stop</button>
+    </div>
+    <p class="speed-status" id="reels-status"></p>
+    <div class="reels-counts" id="reels-counts" hidden></div>
+
+    <h2>Options</h2>
+    <label class="row">
+      <span>Include photos too</span>
+      <input type="checkbox" id="reels-photos">
+    </label>
+    <label class="row">
+      <span>Skip files already downloaded</span>
+      <input type="checkbox" id="reels-skip">
+    </label>
+    <label class="row">
+      <span>Download button on Instagram videos</span>
+      <input type="checkbox" id="reels-button">
+    </label>
+
+    <h2 class="row-head">History <button type="button" class="link-btn" id="reels-forget">Forget</button></h2>
+    <p class="note" id="reels-history"></p>
+    <p class="note">Saves every video in your saved posts (reels, video posts and carousel videos) to Downloads/Instagram Saved, one at a time with a short pause between each. It uses your instagram.com login, so be logged in there, and keep that Instagram tab open while it runs. If it stops, start it again: it carries on where it left off.</p>
   </section>
 
   <section id="tab-color" class="panel" role="tabpanel" hidden>

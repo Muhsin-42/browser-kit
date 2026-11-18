@@ -21,6 +21,8 @@
   // changes this soon after a load are undone; later ones are taken as the
   // user's choice (e.g. YouTube's own speed menu) and adopted.
   const GRACE = 2000;
+  // How long after a click or key press a rate change by the site counts as the user's.
+  const USER_WINDOW = 3000;
   const STORE = 'speed-last';
   const KEYS = { s: 'slower', d: 'faster', r: 'reset', g: 'preferred', z: 'rewind', x: 'advance', v: 'display',
     p: 'pip', a: 'loop' };
@@ -34,7 +36,9 @@
   const media = new Map(); // element -> { host, box, label, loadedAt, loopA, loopB }
 
   const active = () => settings.enabled && settings.speed;
-  const round = (v) => Math.round(Math.min(MAX, Math.max(MIN, v)) * 100) / 100;
+  // Anything that isn't a real number (a missing or corrupt saved value) is 1×.
+  const round = (v) => (typeof v === 'number' && Number.isFinite(v)
+    ? Math.round(Math.min(MAX, Math.max(MIN, v)) * 100) / 100 : 1);
   const same = (a, b) => Math.abs(a - b) < 0.005;
   const fmt = (v) => v.toFixed(2);
 
@@ -81,8 +85,19 @@
       el.playbackRate = speed;
       return;
     }
-    // Changed by the user through the site's own controls: follow it.
-    setSpeed(el.playbackRate, false);
+    // Changed by the user through the site's own controls: follow it. Pages
+    // also change the rate on their own (0 while buffering, slow-motion
+    // previews, ads in iframes); adopting those would save e.g. 0.1× as the
+    // speed for every site, so only follow a change right after a click or key
+    // press, and never one outside our range.
+    const rate = el.playbackRate;
+    if (rate < MIN || rate > MAX || Date.now() - lastInput > USER_WINDOW) return;
+    setSpeed(rate, false);
+  }
+
+  let lastInput = 0;
+  for (const type of ['pointerdown', 'pointerup', 'keydown']) {
+    window.addEventListener(type, (e) => { if (e.isTrusted) lastInput = Date.now(); }, true);
   }
 
   // Drop elements that left the page and add/remove overlays as sizes change.
@@ -345,6 +360,8 @@
     if (![...media.keys()].some((el) => el.isConnected) && !hasDetached) return;
     e.preventDefault();
     e.stopImmediatePropagation();
+    // A held key (S/D in a WASD game, say) must not walk the speed to its limit.
+    if (e.repeat && (action === 'slower' || action === 'faster')) return;
     run(action);
   }, true);
 

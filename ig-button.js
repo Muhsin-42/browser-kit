@@ -1,0 +1,249 @@
+// Browser Kit: puts a download button on the top-right corner of every video
+// on instagram.com (feed posts, reels, the reels tab, post pages). Instagram
+// plays its videos from blob: URLs, so the button works out which post the
+// video belongs to, asks Instagram's own web API for that post (with your
+// login cookies, like reels.js), and hands the best-quality file to
+// background.js to save under Downloads/Instagram/.
+
+(() => {
+  if (window !== top) return;
+
+  const APP_ID = '936619743392459'; // instagram.com's own web app id
+  const FOLDER = 'Instagram';
+  const ALPHABET = 'ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789-_';
+  const CODE_RE = /\/(?:[\w.]+\/)?(?:p|reels?|tv)\/([\w-]{5,})/;
+
+  // Firefox content scripts fetch as the extension unless they use content.fetch.
+  const pageFetch = typeof content !== 'undefined' && content?.fetch
+    ? content.fetch.bind(content) : fetch;
+
+  let on = true;
+  const buttons = new Map(); // video -> host element
+
+  // --- Which post is this video from? ---
+
+  const codeOf = (href) => href?.match(CODE_RE)?.[1] || null;
+
+  // Walk up from the video until a container holds a link to exactly one post.
+  // Feed posts link to /p/CODE (the timestamp); reels in the reels tab sit in
+  // a container whose own URL is the page's.
+  function postCode(video) {
+    for (let el = video.parentElement, depth = 0; el && el !== document.body && depth < 25;
+      el = el.parentElement, depth++) {
+      const codes = new Set();
+      for (const a of el.querySelectorAll('a[href]')) {
+        const c = codeOf(a.getAttribute('href'));
+        if (c) codes.add(c);
+      }
+      if (codes.size === 1) return [...codes][0];
+      if (codes.size > 1) break; // reached a container with several posts
+    }
+    // A post or reel page, or the reels tab (its URL follows the visible reel).
+    return codeOf(location.pathname);
+  }
+
+  // Shortcodes are the media id in base64 (Instagram's alphabet); private
+  // posts add extra characters after the first 11.
+  function mediaId(code) {
+    let id = 0n;
+    for (const ch of code.slice(0, 11)) {
+      const n = ALPHABET.indexOf(ch);
+      if (n < 0) return null;
+      id = id * 64n + BigInt(n);
+    }
+    return id.toString();
+  }
+
+  async function postInfo(code) {
+    const id = mediaId(code);
+    if (!id) throw new Error('Couldn\'t read this post\'s link.');
+    const csrf = document.cookie.match(/(?:^|;\s*)csrftoken=([^;]+)/)?.[1] || '';
+    const res = await pageFetch(`${location.origin}/api/v1/media/${id}/info/`, {
+      credentials: 'include',
+      headers: { 'X-IG-App-ID': APP_ID, 'X-CSRFToken': csrf, 'X-Requested-With': 'XMLHttpRequest' },
+    });
+    const body = await res.json().catch(() => null);
+    const media = body?.items?.[0];
+    if (!res.ok || !media) {
+      throw new Error(res.status === 401 || res.status === 403 || body?.require_login
+        ? 'Log in to Instagram to download.' : 'Instagram said: ' + (body?.message || 'HTTP ' + res.status));
+    }
+    return media;
+  }
+
+  const area = (v) => (v.width || 0) * (v.height || 0);
+  const best = (list) => list.reduce((a, b) => (area(b) > area(a) ? b : a));
+
+  // For a carousel, guess the slide from the video's position among the
+  // carousel's <li> items; without a confident guess, take every video.
+  function slideIndex(video) {
+    const li = video.closest('li');
+    const ul = li?.parentElement;
+    if (!li || !ul) return -1;
+    const items = [...ul.children].filter((x) => x.tagName === 'LI');
+    // Instagram keeps a spacer <li> with no media at the start of carousels.
+    const real = items.filter((x) => x.querySelector('video, img'));
+    return real.indexOf(li);
+  }
+
+  function filesOf(media, video) {
+    const user = (media.user?.username || 'unknown').replace(/[^\w.-]/g, '_');
+    const code = (media.code || String(media.pk || media.id)).replace(/[^\w-]/g, '_');
+    const base = `${FOLDER}/${user}_${code}`;
+    if (media.media_type !== 8) {
+      return media.video_versions?.length
+        ? [{ url: best(media.video_versions).url, filename: base + '.mp4' }] : [];
+    }
+    const slides = media.carousel_media || [];
+    const files = slides
+      .map((s, i) => ({ s, i }))
+      .filter(({ s }) => s.video_versions?.length)
+      .map(({ s, i }) => ({ i, url: best(s.video_versions).url, filename: `${base}_${i + 1}.mp4` }));
+    if (files.length <= 1) return files;
+    const i = slideIndex(video);
+    const match = files.find((f) => f.i === i);
+    return match ? [match] : files;
+  }
+
+  // --- The button ---
+
+  const CSS = `
+    :host { all: initial; }
+    button {
+      display: flex; align-items: center; justify-content: center;
+      width: 34px; height: 34px; margin: 0; padding: 0; border: 0; border-radius: 50%;
+      background: rgba(0, 0, 0, 0.55); color: #fff; cursor: pointer;
+      opacity: 0.85; transition: opacity 0.15s, transform 0.15s;
+    }
+    button:hover { opacity: 1; transform: scale(1.06); }
+    button[disabled] { cursor: progress; }
+    svg { width: 18px; height: 18px; }
+    .spin svg { animation: spin 0.9s linear infinite; }
+    @keyframes spin { to { transform: rotate(360deg); } }
+    .tip {
+      position: absolute; top: 40px; right: 0; max-width: 220px; width: max-content;
+      padding: 5px 8px; border-radius: 6px; background: rgba(0, 0, 0, 0.8); color: #fff;
+      font: 500 12px/1.3 system-ui, -apple-system, Roboto, Arial, sans-serif;
+    }
+    .tip:empty { display: none; }
+  `;
+  const ICONS = {
+    download: '<path d="M12 4v11m0 0-4.5-4.5M12 15l4.5-4.5M5 19h14" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"/>',
+    busy: '<path d="M12 3a9 9 0 1 0 9 9" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round"/>',
+    done: '<path d="m5 12.5 4.5 4.5L19 7.5" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"/>',
+    error: '<path d="M12 7v6m0 4h.01" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round"/>',
+  };
+
+  function setIcon(btn, name) {
+    btn.innerHTML = `<svg viewBox="0 0 24 24" aria-hidden="true">${ICONS[name]}</svg>`;
+    btn.classList.toggle('spin', name === 'busy');
+  }
+
+  function build(video) {
+    const host = document.createElement('bk-ig-download');
+    host.style.cssText = 'all: initial; position: absolute; top: 10px; right: 10px; z-index: 2147483646; display: block;';
+    const root = host.attachShadow({ mode: 'open' });
+    const style = document.createElement('style');
+    style.textContent = CSS;
+    const btn = document.createElement('button');
+    btn.type = 'button';
+    btn.title = 'Download video';
+    btn.setAttribute('aria-label', 'Download video');
+    setIcon(btn, 'download');
+    const tip = document.createElement('div');
+    tip.className = 'tip';
+    root.append(style, btn, tip);
+
+    // Keep clicks on the button from pausing, liking or opening the post.
+    for (const type of ['click', 'dblclick', 'mousedown', 'mouseup', 'pointerdown', 'pointerup', 'touchstart', 'touchend']) {
+      host.addEventListener(type, (e) => e.stopPropagation());
+    }
+    btn.addEventListener('click', (e) => {
+      e.preventDefault();
+      download(video, btn, tip);
+    });
+    return host;
+  }
+
+  async function download(video, btn, tip) {
+    if (btn.disabled) return;
+    btn.disabled = true;
+    tip.textContent = '';
+    setIcon(btn, 'busy');
+    let reset = 2500;
+    try {
+      const code = postCode(video);
+      if (!code) throw new Error('Couldn\'t tell which post this video is from. Open the post and try again.');
+      const files = filesOf(await postInfo(code), video);
+      if (!files.length) throw new Error('No video found in this post.');
+      for (const f of files) {
+        const r = await chrome.runtime.sendMessage({ type: 'bk-reels-download', url: f.url, filename: f.filename })
+          .catch((e) => ({ ok: false, error: e.message }));
+        if (!r?.ok) throw new Error('Download failed: ' + (r?.error || 'unknown error'));
+      }
+      setIcon(btn, 'done');
+      btn.title = files.length > 1 ? `Saved ${files.length} videos to Downloads/Instagram` : 'Saved to Downloads/Instagram';
+    } catch (e) {
+      setIcon(btn, 'error');
+      tip.textContent = e.message;
+      reset = 5000;
+    }
+    setTimeout(() => {
+      btn.disabled = false;
+      tip.textContent = '';
+      btn.title = 'Download video';
+      setIcon(btn, 'download');
+    }, reset);
+  }
+
+  // Sit in the video's parent, which Instagram sizes to the video. Give it a
+  // positioning context if it has none so the button lands on the video.
+  function place(video) {
+    let host = buttons.get(video);
+    const want = on && video.isConnected && video.offsetWidth > 120 && video.offsetHeight > 120;
+    if (!want) {
+      if (host) host.style.display = 'none';
+      return;
+    }
+    const parent = video.parentElement;
+    if (!parent) return;
+    if (!host) {
+      host = build(video);
+      buttons.set(video, host);
+    }
+    host.style.display = 'block';
+    if (host.parentElement !== parent) {
+      if (getComputedStyle(parent).position === 'static') parent.style.position = 'relative';
+      parent.appendChild(host);
+    }
+  }
+
+  function scan() {
+    for (const [video, host] of buttons) {
+      if (!video.isConnected) {
+        host.remove();
+        buttons.delete(video);
+      }
+    }
+    document.querySelectorAll('video').forEach(place);
+  }
+
+  // Instagram is a single-page app that keeps adding posts as you scroll.
+  let queued = false;
+  new MutationObserver(() => {
+    if (queued) return;
+    queued = true;
+    setTimeout(() => { queued = false; scan(); }, 300);
+  }).observe(document.documentElement, { childList: true, subtree: true });
+  setInterval(scan, 2000);
+
+  function applySettings(s) {
+    on = !!(s.enabled && s['reels-button']);
+    scan();
+  }
+  const KEYS = { enabled: true, 'reels-button': true };
+  chrome.storage.sync.get(KEYS, applySettings);
+  chrome.storage.onChanged.addListener((changes, area) => {
+    if (area === 'sync' && ('enabled' in changes || 'reels-button' in changes)) chrome.storage.sync.get(KEYS, applySettings);
+  });
+})();

@@ -417,3 +417,129 @@ chrome.storage.sync.get(YTQH_DEFAULTS, render);
 chrome.storage.onChanged.addListener((_changes, area) => {
   if (area === 'sync') chrome.storage.sync.get(YTQH_DEFAULTS, render);
 });
+
+// --- Reels tab: runs reels.js in an instagram.com tab and shows its progress ---
+
+const IG = 'https://www.instagram.com/';
+const REELS_STALE_MS = 90000; // reels.js updates at least every 5s while it runs
+const reelsStart = document.getElementById('reels-start');
+const reelsStop = document.getElementById('reels-stop');
+const reelsStatus = document.getElementById('reels-status');
+const reelsCounts = document.getElementById('reels-counts');
+let reelsJob = null;
+let reelsDone = 0;
+let reelsBusy = '';
+
+const reelsRunning = (j) => j?.state === 'running' && Date.now() - j.updatedAt < REELS_STALE_MS;
+
+function renderReels() {
+  const j = reelsJob;
+  const running = reelsRunning(j);
+  reelsStart.hidden = running;
+  reelsStop.hidden = !running;
+  reelsStart.disabled = !!reelsBusy;
+
+  reelsCounts.hidden = !j || j.posts == null;
+  reelsCounts.textContent = '';
+  if (!reelsCounts.hidden) {
+    for (const [label, n] of [['Posts', j.posts], ['Saved', j.saved], ['Skipped', j.skipped], ['Failed', j.failed]]) {
+      const d = document.createElement('div');
+      const b = document.createElement('b');
+      b.textContent = n || 0;
+      d.append(b, label);
+      reelsCounts.appendChild(d);
+    }
+  }
+
+  reelsStatus.textContent = reelsBusy
+    || (running ? j.message || (j.current ? 'Saving ' + j.current : 'Reading your saved posts…')
+    : j?.state === 'running' ? 'It stopped because the Instagram tab was closed or reloaded. Start again to carry on.'
+    : j?.state === 'done' ? `Done! Everything is in Downloads/${j.folder || 'Instagram Saved'}.` + (j.failed ? ' Run it again to retry the failed ones.' : '')
+    : j?.state === 'stopped' ? 'Stopped. Start again to carry on where it left off.'
+    : j?.state === 'error' ? j.message
+    : '');
+
+  document.getElementById('reels-history').textContent = reelsDone
+    ? `${reelsDone} file${reelsDone === 1 ? '' : 's'} downloaded so far. "Forget" makes the next run download them again.`
+    : 'Nothing downloaded yet.';
+}
+
+function loadReels() {
+  chrome.storage.local.get({ 'reels-job': null, 'reels-done': {} }, (l) => {
+    reelsJob = l['reels-job'];
+    reelsDone = Object.keys(l['reels-done']).length;
+    renderReels();
+  });
+}
+
+function tabLoaded(tabId) {
+  return new Promise((resolve) => {
+    const done = () => { chrome.tabs.onUpdated.removeListener(onUpdated); resolve(); };
+    const onUpdated = (id, info) => { if (id === tabId && info.status === 'complete') done(); };
+    chrome.tabs.onUpdated.addListener(onUpdated);
+    chrome.tabs.get(tabId, (t) => { if (t?.status === 'complete') done(); });
+  });
+}
+
+// Uses the current tab if it's Instagram, else any open Instagram tab, else
+// opens one in the background (so the popup stays open).
+reelsStart.addEventListener('click', async () => {
+  if (reelsRunning(reelsJob) || reelsBusy) return;
+  try {
+    const [active] = await chrome.tabs.query({ active: true, currentWindow: true });
+    let tab = active?.url?.startsWith(IG) ? active : (await chrome.tabs.query({ url: IG + '*' }))[0];
+    if (!tab) {
+      reelsBusy = 'Opening Instagram…';
+      renderReels();
+      tab = await chrome.tabs.create({ url: IG, active: false });
+      await tabLoaded(tab.id);
+    }
+    reelsBusy = 'Starting…';
+    renderReels();
+    await chrome.storage.local.remove('reels-stop');
+    await chrome.scripting.executeScript({ target: { tabId: tab.id }, files: ['reels.js'] });
+    reelsBusy = '';
+  } catch (e) {
+    reelsBusy = '';
+    reelsJob = { state: 'error', message: 'Couldn\'t start in the Instagram tab: ' + e.message };
+  }
+  renderReels();
+});
+
+// On a collection page the button downloads just that collection (see reels.js).
+chrome.tabs.query({ active: true, currentWindow: true }, ([tab]) => {
+  let path = '';
+  try { if (tab?.url?.startsWith(IG)) path = new URL(tab.url).pathname; } catch {}
+  const m = path.match(/^\/[\w.]+\/saved\/([^/]+)\/\d+\/?/);
+  if (m && m[1] !== 'all-posts') {
+    const name = decodeURIComponent(m[1]).replace(/[-_]+/g, ' ').trim();
+    reelsStart.textContent = `Download "${name}" collection`;
+  }
+});
+
+reelsStop.addEventListener('click', () => {
+  chrome.storage.local.set({ 'reels-stop': true });
+  reelsStatus.textContent = 'Stopping…';
+});
+
+document.getElementById('reels-forget').addEventListener('click', () => {
+  chrome.storage.local.remove('reels-done');
+});
+
+for (const key of ['reels-photos', 'reels-skip', 'reels-button']) {
+  document.getElementById(key).addEventListener('change', (e) => {
+    chrome.storage.sync.set({ [key]: e.target.checked });
+  });
+}
+chrome.storage.sync.get({ 'reels-photos': false, 'reels-skip': true, 'reels-button': true }, (s) => {
+  document.getElementById('reels-photos').checked = s['reels-photos'];
+  document.getElementById('reels-skip').checked = s['reels-skip'];
+  document.getElementById('reels-button').checked = s['reels-button'];
+});
+
+chrome.storage.onChanged.addListener((changes, area) => {
+  if (area === 'local' && ('reels-job' in changes || 'reels-done' in changes)) loadReels();
+});
+// Notices a job whose tab went away.
+setInterval(() => { if (reelsJob?.state === 'running') renderReels(); }, 5000);
+loadReels();

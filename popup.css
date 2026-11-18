@@ -644,3 +644,40 @@ body.off .row:not(:first-of-type) {
   color: var(--muted);
   font-size: 11px;
 }
+
+/* --- Reels tab --- */
+
+#reels-status:empty {
+  display: none;
+}
+
+.reels-counts {
+  display: grid;
+  grid-template-columns: repeat(4, 1fr);
+  gap: 6px;
+  margin-top: 8px;
+}
+
+.reels-counts div {
+  padding: 6px 4px;
+  border: 1px solid var(--line);
+  border-radius: 6px;
+  text-align: center;
+  font-size: 11px;
+  color: var(--muted);
+}
+
+.reels-counts b {
+  display: block;
+  font-size: 15px;
+  color: var(--fg);
+  font-variant-numeric: tabular-nums;
+}
+
+#reels-status {
+  overflow-wrap: anywhere;
+}
+
+#tab-reels [hidden] {
+  display: none;
+}

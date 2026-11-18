@@ -1,0 +1,108 @@
+<!doctype html>
+<html>
+<head>
+<meta charset="utf-8">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Archivo+Black&family=Space+Grotesk:wght@500;700&display=block" rel="stylesheet">
+<style>
+  * { box-sizing: border-box; }
+  html, body { margin: 0; width: 1280px; height: 800px; overflow: hidden; }
+  body {
+    background: var(--bg);
+    font-family: 'Space Grotesk', sans-serif;
+    color: #000;
+    position: relative;
+    background-image: radial-gradient(rgba(0,0,0,.18) 1.5px, transparent 1.5px);
+    background-size: 26px 26px;
+    background-color: var(--bg);
+  }
+  .wrap { position: absolute; inset: 0; display: flex; align-items: center; gap: 72px; padding: 0 88px; }
+  .copy { flex: 1; }
+  .tag {
+    display: inline-block; padding: 8px 16px; background: #fff; border: 4px solid #000;
+    box-shadow: 5px 5px 0 #000; font-weight: 700; font-size: 20px; text-transform: uppercase;
+    letter-spacing: .06em; transform: rotate(-2deg); margin-bottom: 30px;
+  }
+  h1 { font-family: 'Archivo Black', sans-serif; font-size: 76px; line-height: .98; margin: 0 0 26px; letter-spacing: -.02em; }
+  h1 mark { background: #fff; padding: 0 12px; border: 4px solid #000; box-shadow: 6px 6px 0 #000; display: inline-block; margin-top: 8px; }
+  p { font-size: 26px; font-weight: 500; line-height: 1.35; margin: 0 0 30px; max-width: 560px; }
+  .chips { display: flex; flex-wrap: wrap; gap: 14px; max-width: 600px; }
+  .chip {
+    background: #fff; border: 3px solid #000; box-shadow: 4px 4px 0 #000; padding: 8px 14px;
+    font-size: 19px; font-weight: 700;
+  }
+  .shot {
+    flex: none; background: #0f0f0f; border: 5px solid #000; border-radius: 18px;
+    box-shadow: 14px 14px 0 #000; overflow: hidden; transform: rotate(1.5deg);
+  }
+  .shot img { display: block; }
+  .bar {
+    height: 38px; background: #fff; border-bottom: 5px solid #000; display: flex; align-items: center; gap: 9px; padding: 0 14px;
+  }
+  .bar i { width: 14px; height: 14px; border-radius: 50%; border: 3px solid #000; display: block; }
+  .bar i:nth-child(1) { background: #FF5A4E; } .bar i:nth-child(2) { background: #FFD23F; } .bar i:nth-child(3) { background: #7BE07B; }
+  .sticker {
+    position: absolute; font-family: 'Archivo Black', sans-serif; background: #FFD23F; border: 4px solid #000;
+    box-shadow: 5px 5px 0 #000; padding: 10px 18px; font-size: 24px; transform: rotate(-6deg);
+  }
+
+  /* hero */
+  .hero { flex-direction: column; justify-content: center; text-align: center; gap: 0; }
+  .hero .logo { width: 190px; height: 190px; margin-bottom: 34px; }
+  .hero h1 { font-size: 104px; }
+  .hero p { max-width: 820px; margin: 0 auto 38px; }
+  .hero .chips { justify-content: center; max-width: 1000px; }
+</style>
+</head>
+<body>
+<div class="wrap" id="root"></div>
+<script>
+const slides = {
+  hero: {
+    bg: '#FFD23F', hero: true,
+    title: 'Browser&nbsp;Kit',
+    body: 'Seven handy tools in one popup. No accounts, no tracking, runs fully on your device.',
+    chips: ['📺 Cleaner YouTube', '⏩ Video speed', '🔊 Volume boost', '🎨 Color picker', '🔤 Font inspector', '🌐 CORS switch', '🔒 Site blocker']
+  },
+  yt: {
+    bg: '#FF6B5B', img: '../screenshots/yt.png', h: 640,
+    tag: 'YouTube', title: 'YouTube,<br><mark>no noise.</mark>',
+    body: 'Hide Shorts, the home feed, Mixes and more. Block ads and get dislike counts back.',
+    chips: ['🚫 One-click “Don’t recommend”', '👎 Dislikes are back', '⏭ Skip video ads'],
+    sticker: ['Bye, Shorts 👋', 'right: 70px; top: 46px;']
+  },
+  speed: {
+    bg: '#B8F35A', img: '../screenshots/speed.png', h: 560,
+    tag: 'Any site', title: 'Every video,<br><mark>your speed.</mark>',
+    body: '0.5× to 2.5× on any video or audio, volume boost up to 600%, and an A–B loop for practice.',
+    chips: ['⌨️ S / D shortcuts', '🔁 A–B loop', '🔊 600% volume'],
+    sticker: ['Works everywhere', 'right: 60px; bottom: 50px;']
+  },
+  color: {
+    bg: '#FF9ECD', img: '../screenshots/color.png', h: 640,
+    tag: 'Designers & devs', title: 'Steal any<br><mark>color & font.</mark>',
+    body: 'Eyedropper, copy as HEX, RGB, HSL or OKLCH, contrast check, and hover any text to see its font.',
+    chips: ['💧 Eyedropper', '🌓 Contrast check', '🔤 What font?']
+  },
+  cors: {
+    bg: '#6FD3FF', img: '../screenshots/cors.png', h: 600,
+    tag: 'Web dev', title: 'CORS on,<br><mark>per site.</mark>',
+    body: 'Turn CORS on for sites like localhost:3000. Cookies and Authorization headers keep working.',
+    chips: ['🎯 Per-site only', '🍪 Real origin, not *', '🏷 CORS badge']
+  }
+};
+const s = slides[location.hash.slice(1) || 'hero'];
+document.body.style.setProperty('--bg', s.bg);
+const root = document.getElementById('root');
+const chips = '<div class="chips">' + s.chips.map(c => `<span class="chip">${c}</span>`).join('') + '</div>';
+if (s.hero) {
+  root.classList.add('hero');
+  root.innerHTML = `<img class="logo" src="../../icons/icon.svg"><h1>${s.title}</h1><p>${s.body}</p>${chips}`;
+} else {
+  root.innerHTML = `<div class="copy"><span class="tag">${s.tag}</span><h1>${s.title}</h1><p>${s.body}</p>${chips}</div>
+    <div class="shot"><div class="bar"><i></i><i></i><i></i></div><img src="${s.img}" style="height:${s.h}px"></div>`;
+  if (s.sticker) root.insertAdjacentHTML('beforeend', `<div class="sticker" style="${s.sticker[1]}">${s.sticker[0]}</div>`);
+}
+</script>
+</body>
+</html>

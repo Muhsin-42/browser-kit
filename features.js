@@ -9,7 +9,7 @@ const YTQH_FEATURES = [
 
   { group: 'Ads' },
   { key: 'block-ads', label: 'Block ads (banners, promos, ad requests)', def: true },
-  { key: 'skip-ads', label: 'Skip video ads (mute + fast-forward)', def: true },
+  { key: 'skip-ads', label: 'Block video ads (fast-forward any that get through)', def: true },
 
   { group: 'Home & navigation' },
   { key: 'home-feed', label: 'Hide homepage feed' },

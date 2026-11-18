@@ -1,6 +1,6 @@
 # Browser Kit
 
-A lightweight Chrome extension (Manifest V3) that bundles a few everyday tools into one popup: a distraction-free YouTube, a speed and volume controller for any video, a color picker with a font inspector, and a per-site CORS switch for web development.
+A lightweight Chrome extension (Manifest V3) that bundles a few everyday tools into one popup: a distraction-free YouTube, a speed and volume controller for any video, a color picker with a font inspector, and a per-site CORS switch for web development, a site blocker, and a one-click downloader for your saved Instagram reels.
 
 No accounts, no tracking, no build step. Everything runs locally and your settings sync through your Chrome profile.
 
@@ -16,7 +16,7 @@ No accounts, no tracking, no build step. Everything runs locally and your settin
 ### 📺 YouTube
 - **🚫 One-click hide**: a button on every thumbnail that picks "Don't recommend channel" (or "Not interested") for you.
 - **Dislike counts**: brings back the dislike count on videos and Shorts, using the [Return YouTube Dislike](https://returnyoutubedislike.com) API.
-- **Ad blocking**: blocks ad requests and banners, and mutes and fast-forwards video ads.
+- **Ad blocking**: blocks ad requests and banners, removes video ads before they load (YouTube and YouTube Music), and mutes and fast-forwards any that get through.
 - **Hide distractions**: switches for the home feed, Shorts, Mixes, comments, related videos, live chat, end screens, autoplay and more.
 
 ### ⏩ Video controller (works on every site)
@@ -53,6 +53,15 @@ No accounts, no tracking, no build step. Everything runs locally and your settin
 - After 10 minutes the site is blocked again, and tabs still on it go back to the blocked page.
 - A site can only be removed from the list while it is unlocked.
 
+### 📥 Reels (Instagram saved posts)
+- **One click downloads every video in your saved posts** (reels, video posts and carousel videos) to `Downloads/Instagram Saved/`, named `username_postcode.mp4`, in the best quality available.
+- Optionally saves photos too.
+- **Collections:** open a collection (say *foods*) and press the button there to download just that collection into `Downloads/Instagram Saved/foods/`.
+- Remembers what it already downloaded, so the next run only fetches new saves. If it stops (tab closed, Stop pressed) just start it again.
+- **A download button on every Instagram video** (top-right corner, in the feed, reels and post pages) saves that one video to `Downloads/Instagram/`. It can be switched off in the Reels tab.
+- Uses your instagram.com login and Instagram's own web API, the same requests the saved page makes. It saves one file at a time with a few seconds between each and backs off when Instagram asks it to slow down, so a large collection takes a while. Keep the Instagram tab open while it runs.
+- This relies on Instagram's unofficial API, which can change without notice, and automated downloading is against Instagram's terms. Use it for your own personal archive, at your own risk.
+
 ## Installation
 
 1. Clone or [download](https://github.com/Muhsin-42/browser-kit/archive/refs/heads/main.zip) this repository.
@@ -82,11 +91,14 @@ Requires Firefox 140 or newer. Firefox has no picture-in-picture API for extensi
 | `dislikes.js` | Dislike counts (Return YouTube Dislike) |
 | `content.js`, `styles.css` | One-click "Don't recommend" button |
 | `rules.json`, `background.js` | Ad-request blocking and CORS rules |
+| `yt-noads.js` | Removes video ads from YouTube's player data before the player reads it |
 | `speed.js`, `speed-main.js` | Speed controller and volume boost |
 | `popup-color.js`, `picker.js`, `fontinspect.js` | Color picker and font inspector |
 | `cors.js` | Shared CORS settings |
 | `blocker.js` | Shared site blocker settings and unlock phrase |
 | `blocked.html`, `blocked.js` | Page shown for blocked sites, with the unlock phrase |
+| `reels.js` | Saved Instagram reels downloader (injected into an instagram.com tab) |
+| `ig-button.js` | Download button on each Instagram video |
 
 ## Permissions
 
@@ -95,5 +107,6 @@ Requires Firefox 140 or newer. Firefox has no picture-in-picture API for extensi
 | `storage` | Save your settings |
 | `declarativeNetRequest` | Block ad requests, add CORS headers and redirect blocked sites |
 | `alarms` | Block a site again 10 minutes after you unlock it |
+| `downloads` | Save your Instagram saved reels into a Downloads subfolder |
 | `activeTab`, `scripting` | Run the color picker and font inspector on the current tab |
 | `<all_urls>` | Speed controller and CORS work on any site |

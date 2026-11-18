@@ -1,9 +1,16 @@
 {
   "manifest_version": 3,
   "name": "Browser Kit",
-  "version": "2.2.0",
-  "description": "Handy browser tools: a cleaner YouTube, video speed and volume control, color picker, font inspector, CORS switch and site blocker.",
+  "version": "2.3.0",
+  "description": "Handy browser tools: a cleaner YouTube, video speed and volume control, color picker, font inspector, CORS switch, site blocker and a saved Instagram reels downloader.",
   "minimum_chrome_version": "121",
+  "icons": {
+    "16": "icons/icon-16.png",
+    "32": "icons/icon-32.png",
+    "48": "icons/icon-48.png",
+    "96": "icons/icon-96.png",
+    "128": "icons/icon-128.png"
+  },
   "browser_specific_settings": {
     "gecko": {
       "id": "browser-kit@muhsin-42",
@@ -18,7 +25,8 @@
     "declarativeNetRequest",
     "activeTab",
     "scripting",
-    "alarms"
+    "alarms",
+    "downloads"
   ],
   "host_permissions": [
     "<all_urls>"
@@ -37,6 +45,11 @@
   ],
   "action": {
     "default_title": "Browser Kit",
+    "default_icon": {
+      "16": "icons/icon-16.png",
+      "32": "icons/icon-32.png",
+      "48": "icons/icon-48.png"
+    },
     "default_popup": "popup.html"
   },
   "content_scripts": [
@@ -81,6 +94,20 @@
       "matches": [
         "https://www.youtube.com/*",
         "https://m.youtube.com/*",
+        "https://www.youtube-nocookie.com/embed/*",
+        "https://music.youtube.com/*"
+      ],
+      "js": [
+        "yt-noads.js"
+      ],
+      "run_at": "document_start",
+      "all_frames": true,
+      "world": "MAIN"
+    },
+    {
+      "matches": [
+        "https://www.youtube.com/*",
+        "https://m.youtube.com/*",
         "https://www.youtube-nocookie.com/embed/*"
       ],
       "js": [
@@ -92,6 +119,25 @@
       ],
       "run_at": "document_start",
       "all_frames": true
+    },
+    {
+      "matches": [
+        "https://music.youtube.com/*"
+      ],
+      "js": [
+        "settings.js"
+      ],
+      "run_at": "document_start",
+      "all_frames": true
+    },
+    {
+      "matches": [
+        "https://www.instagram.com/*"
+      ],
+      "js": [
+        "ig-button.js"
+      ],
+      "run_at": "document_idle"
     }
   ]
 }
