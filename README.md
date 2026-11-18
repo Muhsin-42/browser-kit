@@ -99,6 +99,7 @@ Requires Firefox 140 or newer. Firefox has no picture-in-picture API for extensi
 | `blocked.html`, `blocked.js` | Page shown for blocked sites, with the unlock phrase |
 | `reels.js` | Saved Instagram reels downloader (injected into an instagram.com tab) |
 | `ig-button.js` | Download button on each Instagram video |
+| `ig-capture.js` | Keeps the post data Instagram's page loads, so the download button works logged out |
 
 ## Permissions
 

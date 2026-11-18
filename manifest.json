@@ -135,6 +135,16 @@
         "https://www.instagram.com/*"
       ],
       "js": [
+        "ig-capture.js"
+      ],
+      "run_at": "document_start",
+      "world": "MAIN"
+    },
+    {
+      "matches": [
+        "https://www.instagram.com/*"
+      ],
+      "js": [
         "ig-button.js"
       ],
       "run_at": "document_idle"

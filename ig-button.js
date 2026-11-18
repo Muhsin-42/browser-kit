@@ -65,10 +65,39 @@
     const body = await res.json().catch(() => null);
     const media = body?.items?.[0];
     if (!res.ok || !media) {
-      throw new Error(res.status === 401 || res.status === 403 || body?.require_login
-        ? 'Log in to Instagram to download.' : 'Instagram said: ' + (body?.message || 'HTTP ' + res.status));
+      // Logged out, Instagram answers 200 with a login page instead of data.
+      throw new Error(res.status === 401 || res.status === 403 || body?.require_login || !body
+        ? 'Instagram wants you logged in for this one. Play the video for a moment and try again, or log in.'
+        : 'Instagram said: ' + (body.message || 'HTTP ' + res.status));
     }
     return media;
+  }
+
+  // The copy of this post Instagram's own page loaded (see ig-capture.js), in
+  // the same shape as the API's. Works logged out and needs no request.
+  function capturedPost(code) {
+    let answer = '';
+    const listen = (e) => { answer = e.detail; };
+    document.addEventListener('bk-ig-answer', listen);
+    document.dispatchEvent(new CustomEvent('bk-ig-ask', { detail: code }));
+    document.removeEventListener('bk-ig-answer', listen);
+    if (!answer) return null;
+    try { return normalize(JSON.parse(answer)); } catch { return null; }
+  }
+
+  // The older GraphQL shape → the API's shape that filesOf reads.
+  function normalize(o) {
+    if (!o || o.video_versions || o.carousel_media) return o;
+    const slide = (n) => ({
+      video_versions: n.video_url ? [{ url: n.video_url, ...(n.dimensions || {}) }] : [],
+    });
+    const children = o.edge_sidecar_to_children?.edges?.map((e) => slide(e.node)) || [];
+    return {
+      code: o.shortcode,
+      user: { username: o.owner?.username },
+      media_type: children.length ? 8 : 2,
+      ...(children.length ? { carousel_media: children } : slide(o)),
+    };
   }
 
   const area = (v) => (v.width || 0) * (v.height || 0);
@@ -177,7 +206,11 @@
       let files = [];
       let apiError = null;
       if (code) {
-        try { files = filesOf(await postInfo(code), video); } catch (e) { apiError = e; }
+        const seen = capturedPost(code);
+        if (seen) files = filesOf(seen, video);
+        if (!files.length) {
+          try { files = filesOf(await postInfo(code), video); } catch (e) { apiError = e; }
+        }
       }
       // Logged out, Instagram often plays a plain .mp4 rather than a blob:
       // URL; then the video's own file is the download.
