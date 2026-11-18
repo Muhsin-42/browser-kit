@@ -141,7 +141,7 @@
 
   function build(video) {
     const host = document.createElement('bk-ig-download');
-    host.style.cssText = 'all: initial; position: absolute; top: 10px; right: 10px; z-index: 2147483646; display: block;';
+    host.style.cssText = 'all: initial; position: fixed; display: block;';
     const root = host.attachShadow({ mode: 'open' });
     const style = document.createElement('style');
     style.textContent = CSS;
@@ -160,22 +160,35 @@
     }
     btn.addEventListener('click', (e) => {
       e.preventDefault();
-      download(video, btn, tip);
+      download(video, btn, tip, host);
     });
     return host;
   }
 
-  async function download(video, btn, tip) {
+  async function download(video, btn, tip, host) {
     if (btn.disabled) return;
     btn.disabled = true;
     tip.textContent = '';
     setIcon(btn, 'busy');
     let reset = 2500;
     try {
+      host.busy = true;
       const code = postCode(video);
-      if (!code) throw new Error('Couldn\'t tell which post this video is from. Open the post and try again.');
-      const files = filesOf(await postInfo(code), video);
-      if (!files.length) throw new Error('No video found in this post.');
+      let files = [];
+      let apiError = null;
+      if (code) {
+        try { files = filesOf(await postInfo(code), video); } catch (e) { apiError = e; }
+      }
+      // Logged out, Instagram often plays a plain .mp4 rather than a blob:
+      // URL; then the video's own file is the download.
+      if (!files.length && /^https:/.test(video.currentSrc)) {
+        files = [{ url: video.currentSrc, filename: `${FOLDER}/${code || 'instagram_' + Date.now()}.mp4` }];
+      }
+      if (!files.length) {
+        console.warn('[Browser Kit] Instagram download:', { code, src: video.currentSrc, apiError });
+        throw apiError || new Error(code ? 'No video found in this post.'
+          : 'Couldn\'t tell which post this video is from. Open the post and try again.');
+      }
       for (const f of files) {
         const r = await chrome.runtime.sendMessage({ type: 'bk-reels-download', url: f.url, filename: f.filename })
           .catch((e) => ({ ok: false, error: e.message }));
@@ -189,6 +202,7 @@
       reset = 5000;
     }
     setTimeout(() => {
+      host.busy = false;
       btn.disabled = false;
       tip.textContent = '';
       btn.title = 'Download video';
@@ -196,26 +210,49 @@
     }, reset);
   }
 
-  // Sit in the video's parent, which Instagram sizes to the video. Give it a
-  // positioning context if it has none so the button lands on the video.
+  // The buttons live in a layer of our own at the top of the page, positioned
+  // over each video. Inside Instagram's player they'd sit under its
+  // transparent click layer, and clicks would pause the video instead.
+  let layer = null;
+  function getLayer() {
+    if (!layer?.isConnected) {
+      layer = document.createElement('bk-ig-layer');
+      layer.style.cssText = 'all: initial; position: fixed; inset: 0; width: 0; height: 0; z-index: 2147483646; display: block;';
+      document.documentElement.appendChild(layer);
+    }
+    return layer;
+  }
+
+  // Is the video actually showing (not scrolled away or under a dialog)?
+  // Instagram covers its videos with overlays, so accept anything at the
+  // video's centre that shares a close ancestor with it.
+  function visible(video, r) {
+    if (r.width < 120 || r.height < 120 || r.bottom < 40 || r.top > innerHeight - 40 ||
+      r.right < 40 || r.left > innerWidth) return false;
+    const x = Math.min(Math.max(r.left + r.width / 2, 0), innerWidth - 1);
+    const y = Math.min(Math.max(r.top + r.height / 2, 0), innerHeight - 1);
+    const hit = document.elementFromPoint(x, y);
+    if (!hit) return false;
+    let box = video;
+    for (let i = 0; i < 6 && box.parentElement; i++) box = box.parentElement;
+    return box.contains(hit);
+  }
+
   function place(video) {
     let host = buttons.get(video);
-    const want = on && video.isConnected && video.offsetWidth > 120 && video.offsetHeight > 120;
-    if (!want) {
-      if (host) host.style.display = 'none';
+    const r = on && video.isConnected ? video.getBoundingClientRect() : null;
+    if (!r || !visible(video, r)) {
+      if (host && !host.busy) host.style.display = 'none';
       return;
     }
-    const parent = video.parentElement;
-    if (!parent) return;
     if (!host) {
       host = build(video);
       buttons.set(video, host);
     }
+    if (host.parentElement !== getLayer()) layer.appendChild(host);
     host.style.display = 'block';
-    if (host.parentElement !== parent) {
-      if (getComputedStyle(parent).position === 'static') parent.style.position = 'relative';
-      parent.appendChild(host);
-    }
+    host.style.top = Math.max(r.top, 0) + 10 + 'px';
+    host.style.left = Math.min(r.right, innerWidth) - 44 + 'px';
   }
 
   function scan() {
@@ -228,6 +265,14 @@
     document.querySelectorAll('video').forEach(place);
   }
 
+  // Follow the videos as the page scrolls (reels also slide without a scroll event).
+  let frame = 0;
+  const reposition = () => {
+    if (!frame) frame = requestAnimationFrame(() => { frame = 0; scan(); });
+  };
+  addEventListener('scroll', reposition, { capture: true, passive: true });
+  addEventListener('resize', reposition);
+
   // Instagram is a single-page app that keeps adding posts as you scroll.
   let queued = false;
   new MutationObserver(() => {
@@ -235,7 +280,7 @@
     queued = true;
     setTimeout(() => { queued = false; scan(); }, 300);
   }).observe(document.documentElement, { childList: true, subtree: true });
-  setInterval(scan, 2000);
+  setInterval(scan, 500);
 
   function applySettings(s) {
     on = !!(s.enabled && s['reels-button']);
