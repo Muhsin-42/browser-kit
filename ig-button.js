@@ -223,19 +223,16 @@
     return layer;
   }
 
-  // Is the video actually showing (not scrolled away or under a dialog)?
-  // Instagram covers its videos with overlays, so accept anything at the
-  // video's centre that shares a close ancestor with it.
+  // Is the video on screen and not under one of Instagram's dialogs (a post
+  // opened over the feed)? Instagram covers its videos with overlays of its
+  // own, so only a dialog that doesn't contain the video counts as covering.
   function visible(video, r) {
     if (r.width < 120 || r.height < 120 || r.bottom < 40 || r.top > innerHeight - 40 ||
       r.right < 40 || r.left > innerWidth) return false;
     const x = Math.min(Math.max(r.left + r.width / 2, 0), innerWidth - 1);
     const y = Math.min(Math.max(r.top + r.height / 2, 0), innerHeight - 1);
-    const hit = document.elementFromPoint(x, y);
-    if (!hit) return false;
-    let box = video;
-    for (let i = 0; i < 6 && box.parentElement; i++) box = box.parentElement;
-    return box.contains(hit);
+    const dialog = document.elementFromPoint(x, y)?.closest('[role="dialog"]');
+    return !dialog || dialog.contains(video);
   }
 
   function place(video) {
@@ -286,6 +283,7 @@
     on = !!(s.enabled && s['reels-button']);
     scan();
   }
+  console.log('[Browser Kit] Instagram download button ready');
   const KEYS = { enabled: true, 'reels-button': true };
   chrome.storage.sync.get(KEYS, applySettings);
   chrome.storage.onChanged.addListener((changes, area) => {
