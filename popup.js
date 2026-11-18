@@ -53,20 +53,39 @@ document.getElementById('all-off').addEventListener('click', () => setAll(false)
 
 const TAB_KEY = 'ytqh-popup-tab';
 
-function showTab(name) {
+// Site-specific tabs: YT only shows on YouTube / YouTube Music, Reels only on
+// Instagram. Both start hidden in popup.html so they don't flash elsewhere.
+const SITE_TABS = {
+  yt: /^(www\.|m\.|music\.)?youtube(-nocookie)?\.com$/,
+  reels: /^(www\.)?instagram\.com$/,
+};
+
+function showTab(name, remember = true) {
   for (const b of document.querySelectorAll('.tabs button')) {
     b.setAttribute('aria-selected', b.dataset.tab === name);
   }
   for (const p of document.querySelectorAll('.panel')) p.hidden = p.id !== 'tab-' + name;
-  try { localStorage.setItem(TAB_KEY, name); } catch {}
+  if (remember) try { localStorage.setItem(TAB_KEY, name); } catch {}
 }
 
 for (const b of document.querySelectorAll('.tabs button')) {
   b.addEventListener('click', () => showTab(b.dataset.tab));
 }
-let savedTab = 'yt';
-try { savedTab = localStorage.getItem(TAB_KEY) || 'yt'; } catch {}
-showTab(savedTab);
+
+chrome.tabs.query({ active: true, currentWindow: true }, ([tab]) => {
+  let host = '';
+  try { host = new URL(tab?.url || '').hostname; } catch {}
+  const site = Object.keys(SITE_TABS).find((k) => SITE_TABS[k].test(host));
+  for (const k of Object.keys(SITE_TABS)) {
+    document.querySelector(`.tabs button[data-tab="${k}"]`).hidden = k !== site;
+  }
+  let saved = null;
+  try { saved = localStorage.getItem(TAB_KEY); } catch {}
+  // A saved site tab that isn't available here falls back without overwriting
+  // the saved choice, so going back to YouTube reopens the YT tab.
+  if (saved && (!(saved in SITE_TABS) || saved === site)) showTab(saved, false);
+  else showTab(site || 'speed', false);
+});
 
 // --- Video controller tab: talks to speed.js in the current tab ---
 
