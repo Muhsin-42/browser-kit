@@ -371,6 +371,10 @@
     document.dispatchEvent(new CustomEvent('ytqh-speed', { detail: active() ? speed : null }));
   }
   document.addEventListener('ytqh-speed-hello', tellPage);
+  // bg-play.js (page context): keeps media playing in hidden tabs.
+  const tellBgPlay = () => document.dispatchEvent(
+    new CustomEvent('bk-bgplay', { detail: !!(settings.enabled && settings['bg-play']) }));
+  document.addEventListener('bk-bgplay-hello', tellBgPlay);
   document.addEventListener('ytqh-detached', () => { hasDetached = true; });
   // Media inside shadow DOM announces itself when it starts playing.
   document.addEventListener('ytqh-media', (e) => track(e.composedPath()[0]), true);
@@ -481,6 +485,7 @@
     }
     applyBoost();
     tellPage();
+    tellBgPlay();
   }
 
   chrome.storage.sync.get(YTQH_DEFAULTS, (stored) => {

@@ -83,7 +83,8 @@
         "<all_urls>"
       ],
       "js": [
-        "speed-main.js"
+        "speed-main.js",
+        "bg-play.js"
       ],
       "run_at": "document_start",
       "all_frames": true,
