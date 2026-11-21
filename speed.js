@@ -371,6 +371,13 @@
     document.dispatchEvent(new CustomEvent('ytqh-speed', { detail: active() ? speed : null }));
   }
   document.addEventListener('ytqh-speed-hello', tellPage);
+  // ig-seek.js's speed buttons (same extension world): set the speed here so
+  // every video, the overlay and the popup agree.
+  document.addEventListener('bk-speed-set', (e) => {
+    if (!active() || !e.detail || typeof e.detail.rate !== 'number') return;
+    e.detail.handled = true;
+    setSpeed(e.detail.rate);
+  });
   // bg-play.js (page context): keeps media playing in hidden tabs.
   const tellBgPlay = () => document.dispatchEvent(
     new CustomEvent('bk-bgplay', { detail: !!(settings.enabled && settings['bg-play']) }));

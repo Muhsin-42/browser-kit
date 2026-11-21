@@ -1,7 +1,9 @@
 // Browser Kit: a seek bar along the bottom of every video on instagram.com,
 // which shows no progress bar of its own on reels. Shows how far the video
 // has played; click or drag anywhere on it to jump to that moment. Hovering
-// shows the time under the pointer.
+// shows the time under the pointer. Speed buttons (0.5× to 2×) sit at the
+// bottom left; they go through the speed controller (speed.js) when it's on,
+// so they, its S/D keys, its overlay and the popup all show the same speed.
 //
 // Like ig-button.js, the bars live in a layer of our own over the page:
 // inside Instagram's player they'd sit under its click layer, and clicks
@@ -40,7 +42,22 @@
       font-variant-numeric: tabular-nums; pointer-events: none; display: none;
     }
     .hit:hover .tip, .drag .tip { display: block; }
+    .speeds {
+      position: absolute; left: 10px; bottom: 22px; display: flex; gap: 2px; padding: 2px;
+      border-radius: 8px; background: rgba(0, 0, 0, 0.55); opacity: 0.6; transition: opacity 0.15s;
+    }
+    .speeds:hover { opacity: 1; }
+    .speeds button {
+      margin: 0; padding: 4px 7px; border: 0; border-radius: 6px; background: transparent;
+      color: #fff; cursor: pointer; font: 600 12px/1 system-ui, -apple-system, Roboto, Arial, sans-serif;
+      font-variant-numeric: tabular-nums;
+    }
+    .speeds button:hover { background: rgba(255, 255, 255, 0.15); }
+    .speeds button.on { background: #fff; color: #000; }
+    .speeds button[hidden] { display: none; }
   `;
+  const SPEEDS = [0.5, 1, 1.25, 1.5, 2];
+  const label = (r) => `${Math.round(r * 100) / 100}x`;
 
   const fmt = (s) => {
     s = Math.max(0, Math.floor(s || 0));
@@ -57,7 +74,8 @@
       <div class="hit" title="">
         <div class="track"><div class="buf"></div><div class="fill"></div><div class="knob"></div></div>
         <div class="tip"></div>
-      </div>`;
+      </div>
+      <div class="speeds">${SPEEDS.map((r) => `<button type="button" data-rate="${r}">${label(r)}</button>`).join('')}<button type="button" class="other" hidden></button></div>`;
     const hit = root.querySelector('.hit');
     const bar = {
       host, hit,
@@ -65,8 +83,16 @@
       buf: root.querySelector('.buf'),
       knob: root.querySelector('.knob'),
       tip: root.querySelector('.tip'),
+      speeds: [...root.querySelectorAll('.speeds button')],
       dragging: false,
     };
+
+    for (const btn of bar.speeds) {
+      btn.addEventListener('click', (e) => {
+        e.preventDefault();
+        if (btn.dataset.rate) setRate(video, Number(btn.dataset.rate));
+      });
+    }
 
     // Keep our clicks away from Instagram (pause, like, open the post).
     for (const type of ['click', 'dblclick', 'mousedown', 'mouseup', 'pointerdown', 'pointerup', 'touchstart', 'touchend']) {
@@ -116,7 +142,32 @@
     return bar;
   }
 
+  // Through speed.js when its controller is on (it then applies the speed to
+  // every video and remembers it); straight on the video otherwise.
+  function setRate(video, rate) {
+    const req = { rate, handled: false };
+    document.dispatchEvent(new CustomEvent('bk-speed-set', { detail: req }));
+    if (!req.handled) video.playbackRate = rate;
+  }
+
+  function paintSpeed(video, bar) {
+    const rate = video.playbackRate;
+    let matched = false;
+    for (const btn of bar.speeds) {
+      if (!btn.dataset.rate) continue;
+      const on = Math.abs(Number(btn.dataset.rate) - rate) < 0.01;
+      btn.classList.toggle('on', on);
+      if (on) matched = true;
+    }
+    // A speed that isn't one of the buttons (say 1.8× from the G key) shows on its own.
+    const other = bar.speeds.at(-1);
+    other.hidden = matched || !(rate > 0);
+    other.classList.toggle('on', !other.hidden);
+    if (!other.hidden) other.textContent = label(rate);
+  }
+
   function paint(video, bar) {
+    paintSpeed(video, bar);
     const d = duration(video);
     const f = d ? Math.min(1, video.currentTime / d) : 0;
     bar.fill.style.width = f * 100 + '%';
@@ -210,6 +261,11 @@
   // A video's duration is known only once it loads.
   document.addEventListener('loadedmetadata', reposition, true);
   document.addEventListener('play', reposition, true);
+  // Speed changes (our buttons, speed.js's keys, the popup, Instagram) show at once.
+  document.addEventListener('ratechange', (e) => {
+    const bar = bars.get(e.target);
+    if (bar) paintSpeed(e.target, bar);
+  }, true);
 
   let queued = false;
   new MutationObserver(() => {
