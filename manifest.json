@@ -136,7 +136,8 @@
         "https://www.instagram.com/*"
       ],
       "js": [
-        "ig-capture.js"
+        "ig-capture.js",
+        "ig-links-capture.js"
       ],
       "run_at": "document_start",
       "world": "MAIN"
@@ -147,7 +148,8 @@
       ],
       "js": [
         "ig-button.js",
-        "ig-seek.js"
+        "ig-seek.js",
+        "ig-links.js"
       ],
       "run_at": "document_idle"
     }
