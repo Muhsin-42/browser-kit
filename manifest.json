@@ -146,7 +146,8 @@
         "https://www.instagram.com/*"
       ],
       "js": [
-        "ig-button.js"
+        "ig-button.js",
+        "ig-seek.js"
       ],
       "run_at": "document_idle"
     }

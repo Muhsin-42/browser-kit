@@ -545,15 +545,16 @@ document.getElementById('reels-forget').addEventListener('click', () => {
   chrome.storage.local.remove('reels-done');
 });
 
-for (const key of ['reels-photos', 'reels-skip', 'reels-button']) {
+for (const key of ['reels-photos', 'reels-skip', 'reels-button', 'ig-seek']) {
   document.getElementById(key).addEventListener('change', (e) => {
     chrome.storage.sync.set({ [key]: e.target.checked });
   });
 }
-chrome.storage.sync.get({ 'reels-photos': false, 'reels-skip': true, 'reels-button': true }, (s) => {
+chrome.storage.sync.get({ 'reels-photos': false, 'reels-skip': true, 'reels-button': true, 'ig-seek': true }, (s) => {
   document.getElementById('reels-photos').checked = s['reels-photos'];
   document.getElementById('reels-skip').checked = s['reels-skip'];
   document.getElementById('reels-button').checked = s['reels-button'];
+  document.getElementById('ig-seek').checked = s['ig-seek'];
 });
 
 chrome.storage.onChanged.addListener((changes, area) => {
